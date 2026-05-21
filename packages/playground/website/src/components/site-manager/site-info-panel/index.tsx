@@ -15,10 +15,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { getRelativeDate } from '../../../lib/get-relative-date';
 import { selectClientInfoBySiteSlug } from '../../../lib/state/redux/slice-clients';
 import type { SiteInfo } from '../../../lib/state/redux/slice-sites';
-import {
-	isAutosavedSite,
-	preserveSite,
-} from '../../../lib/state/redux/slice-sites';
+import { isAutosavedSite } from '../../../lib/state/redux/slice-sites';
 import {
 	modalSlugs,
 	setActiveModal,
@@ -111,7 +108,7 @@ export function SiteInfoPanel({
 		onClose();
 	};
 	const keepSite = () => {
-		void dispatch(preserveSite(site.slug));
+		dispatch(setActiveModal(modalSlugs.SAVE_SITE));
 	};
 	const clientInfo = useAppSelector((state) =>
 		selectClientInfoBySiteSlug(state, site.slug)

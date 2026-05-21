@@ -254,6 +254,15 @@ export function createSitesAPI(
 				throw new Error('No active site selected');
 			}
 			if (site.metadata.storage !== 'none') {
+				const trimmedName = name?.trim();
+				if (trimmedName && trimmedName !== site.metadata.name) {
+					await dispatch(
+						updateSiteMetadata({
+							slug: site.slug,
+							changes: { name: trimmedName },
+						})
+					);
+				}
 				if (isAutosavedSite(site)) {
 					await dispatch(preserveSite(site.slug));
 				}
@@ -321,10 +330,31 @@ export function createSitesAPI(
 				throw new Error('No active site selected');
 			}
 			if (site.metadata.storage !== 'none') {
-				if (isAutosavedSite(site)) {
-					await dispatch(preserveSite(site.slug));
+				if (site.metadata.storage === 'local-fs') {
+					const trimmedName = name?.trim();
+					if (trimmedName && trimmedName !== site.metadata.name) {
+						await dispatch(
+							updateSiteMetadata({
+								slug: site.slug,
+								changes: { name: trimmedName },
+							})
+						);
+					}
+					if (isAutosavedSite(site)) {
+						await dispatch(preserveSite(site.slug));
+					}
+					return { slug: site.slug, storage: site.metadata.storage };
 				}
-				return { slug: site.slug, storage: site.metadata.storage };
+				await dispatch(
+					persistTemporarySite(site.slug, 'local-fs', {
+						siteName: name,
+						localFsHandle,
+						skipRenameModal: true,
+					})
+				);
+				const updatedSite = selectSiteBySlug(getState(), site.slug);
+				const storage = updatedSite?.metadata.storage ?? 'none';
+				return { slug: site.slug, storage };
 			}
 			await dispatch(
 				persistTemporarySite(site.slug, 'local-fs', {

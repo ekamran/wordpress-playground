@@ -12,7 +12,6 @@ import { Icon, Popover } from '@wordpress/components';
 import { backup, check, cautionFilled } from '@wordpress/icons';
 import {
 	isAutosavedSite,
-	preserveSite,
 	type SiteInfo,
 } from '../../lib/state/redux/slice-sites';
 import type { ClientInfo, OpfsSync } from '../../lib/state/redux/slice-clients';
@@ -95,7 +94,7 @@ export function SaveStatusIndicator() {
 	const handleKeepClick = () => {
 		setIsPopoverOpen(false);
 		if (activeSite) {
-			void dispatch(preserveSite(activeSite.slug));
+			dispatch(setActiveModal(modalSlugs.SAVE_SITE));
 		}
 	};
 
@@ -164,8 +163,8 @@ export function SaveStatusIndicator() {
 							<p className={css.popoverDescription}>
 								This Playground is saved in this browser with
 								your recent autosaves. It will be deleted after
-								5 newer autosaves unless you store it
-								permanently.
+								5 newer autosaves unless you store it in this
+								browser or a local directory.
 							</p>
 							<button
 								className={css.primaryAction}

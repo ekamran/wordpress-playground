@@ -19,7 +19,10 @@ import { setActiveModal } from '../../lib/state/redux/slice-ui';
 import { useSitesAPI } from '../../lib/state/redux/site-management-api-middleware';
 import { useLocalFsAvailability } from '../../lib/hooks/use-local-fs-availability';
 import { selectClientInfoBySiteSlug } from '../../lib/state/redux/slice-clients';
-import type { SiteStorageType } from '../../lib/state/redux/slice-sites';
+import {
+	isAutosavedSite,
+	type SiteStorageType,
+} from '../../lib/state/redux/slice-sites';
 import { logger } from '@php-wasm/logger';
 import { isOpfsAvailable } from '../../lib/state/opfs/opfs-site-storage';
 
@@ -119,19 +122,10 @@ export function SaveSiteModal() {
 	const savingProgress =
 		saveProgress?.status === 'syncing' ? saveProgress.progress : undefined;
 
-	// Close modal when save completes successfully
-	useEffect(() => {
-		if (
-			isSubmitting &&
-			saveProgress?.status !== 'syncing' &&
-			saveProgress?.status !== 'error' &&
-			site?.metadata?.storage !== 'none'
-		) {
-			dispatch(setActiveModal(null));
-		}
-	}, [isSubmitting, saveProgress?.status, site?.metadata?.storage, dispatch]);
-
-	if (!site || site.metadata.storage !== 'none') {
+	const canSaveSite = site
+		? site.metadata.storage === 'none' || isAutosavedSite(site)
+		: false;
+	if (!site || !canSaveSite) {
 		return null;
 	}
 
@@ -236,6 +230,7 @@ export function SaveSiteModal() {
 			if (selectedStorage === 'local-fs') {
 				if (!directoryHandle) {
 					setDirectoryError('Choose a directory to continue.');
+					setIsSubmitting(false);
 					return;
 				}
 				const permission = await ensureWriteAccess(directoryHandle);
@@ -244,6 +239,7 @@ export function SaveSiteModal() {
 					setDirectoryError(
 						'Allow Playground to edit that directory in the browser prompt to continue.'
 					);
+					setIsSubmitting(false);
 					return;
 				}
 				await sitesAPI.saveToLocalFileSystem(
@@ -254,7 +250,7 @@ export function SaveSiteModal() {
 				await sitesAPI.saveInBrowser(trimmedName);
 			}
 
-			// Don't close modal here - useEffect will close it when save completes
+			dispatch(setActiveModal(null));
 		} catch (error) {
 			logger.error(error);
 			setSubmitError(
@@ -312,9 +308,9 @@ export function SaveSiteModal() {
 				autoComplete="off"
 			>
 				<p style={{ margin: 0, color: '#1e1e1e' }}>
-					This Playground is temporary and will be lost when you
-					refresh or close this page. Save it to keep your work and
-					find it later in Your Playgrounds.
+					{site.metadata.storage === 'none'
+						? 'This Playground is temporary and will be lost when you refresh or close this page. Save it to keep your work and find it later in Your Playgrounds.'
+						: 'This Playground is autosaved in this browser and may be removed after newer autosaves. Store it permanently in this browser or save it to a local directory.'}
 				</p>
 				<TextControl
 					label="Playground name"

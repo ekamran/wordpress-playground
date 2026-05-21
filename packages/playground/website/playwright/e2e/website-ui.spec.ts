@@ -978,6 +978,11 @@ test.describe('Default Playground storage', () => {
 		await website.page
 			.getByRole('button', { name: 'Store permanently' })
 			.click();
+		const dialog = website.page.getByRole('dialog', {
+			name: 'Save Playground',
+		});
+		await expect(dialog).toBeVisible();
+		await dialog.getByRole('button', { name: 'Save' }).click();
 
 		await expect
 			.poll(() =>
@@ -997,6 +1002,77 @@ test.describe('Default Playground storage', () => {
 		await expect(
 			website.page.getByRole('button', { name: 'Autosaved' })
 		).toHaveCount(0);
+	});
+
+	test('should save a default autosaved Playground to a local directory', async ({
+		website,
+		browserName,
+	}) => {
+		test.skip(
+			browserName !== 'chromium',
+			`Saved-by-default Playgrounds rely on OPFS, which is not available in Playwright's ${browserName}.`
+		);
+
+		await website.goto(getUniqueSavedPlaygroundSetupUrl('local-dir'));
+		await website.ensureSiteManagerIsClosed();
+		const statusButton = website.page.getByRole('button', {
+			name: 'Autosaved',
+		});
+		await expect(statusButton).toBeVisible({ timeout: 120000 });
+
+		await website.page.evaluate(async () => {
+			const root = await navigator.storage.getDirectory();
+			const directory = await root.getDirectoryHandle(
+				`e2e-local-save-${Date.now()}`,
+				{ create: true }
+			);
+			(window as any).__e2eLocalDirectory = directory;
+			Object.defineProperty(window, 'showDirectoryPicker', {
+				value: async () => directory,
+				configurable: true,
+			});
+		});
+
+		await statusButton.click();
+		await website.page
+			.getByRole('button', { name: 'Store permanently' })
+			.click();
+		const dialog = website.page.getByRole('dialog', {
+			name: 'Save Playground',
+		});
+		await expect(dialog).toBeVisible();
+		await dialog
+			.getByText('Save to a local directory')
+			.click({ force: true });
+		await dialog.getByRole('button', { name: 'Choose...' }).click();
+		await dialog.getByRole('button', { name: 'Save' }).click();
+
+		await expect(dialog).not.toBeVisible({ timeout: 90000 });
+		await expect
+			.poll(() =>
+				website.page.evaluate(() => {
+					const sites = (window as any).playgroundSites.list();
+					const activeSite = sites.find((site: any) => site.isActive);
+					return {
+						storage: activeSite?.storage,
+						persistence: activeSite?.persistence,
+					};
+				})
+			)
+			.toEqual({ storage: 'local-fs', persistence: 'explicit' });
+		await expect(website.page.getByText('Saved Playground')).toBeVisible();
+		expect(
+			await website.page.evaluate(async () => {
+				const directory = (window as any)
+					.__e2eLocalDirectory as FileSystemDirectoryHandle;
+				try {
+					await directory.getFileHandle('wp-config.php');
+					return true;
+				} catch {
+					return false;
+				}
+			})
+		).toBe(true);
 	});
 
 	test('should persist WordPress changes after refreshing the default Playground', async ({
