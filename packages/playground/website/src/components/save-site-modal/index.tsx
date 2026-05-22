@@ -56,6 +56,9 @@ export function SaveSiteModal() {
 	);
 
 	const localFsAvailability = useLocalFsAvailability(clientInfo?.client);
+	const targetIsActive = !!site && site.slug === activeSiteSlug;
+	const localIsAvailable =
+		targetIsActive && localFsAvailability === 'available';
 
 	const initialName = useMemo(() => site?.metadata?.name ?? '', [site]);
 	const [name, setName] = useState(initialName);
@@ -99,13 +102,10 @@ export function SaveSiteModal() {
 	}, []);
 
 	useEffect(() => {
-		if (
-			selectedStorage === 'local-fs' &&
-			localFsAvailability !== 'available'
-		) {
+		if (selectedStorage === 'local-fs' && !localIsAvailable) {
 			setSelectedStorage('opfs');
 		}
-	}, [selectedStorage, localFsAvailability]);
+	}, [selectedStorage, localIsAvailable]);
 
 	useEffect(() => {
 		if (
@@ -143,9 +143,9 @@ export function SaveSiteModal() {
 		dispatch(setSiteSlugToSave(undefined));
 	};
 
-	const localIsAvailable = localFsAvailability === 'available';
-	const localUnavailableMessage =
-		localFsAvailability === 'not-available'
+	const localUnavailableMessage = !targetIsActive
+		? 'Open this Playground to save it to a local directory'
+		: localFsAvailability === 'not-available'
 			? 'Not available in this browser'
 			: 'Not available on this site';
 
@@ -238,6 +238,13 @@ export function SaveSiteModal() {
 			setSubmitError(null);
 
 			if (selectedStorage === 'local-fs') {
+				if (!targetIsActive) {
+					setDirectoryError(
+						'Open this Playground to save it to a local directory.'
+					);
+					setIsSubmitting(false);
+					return;
+				}
 				if (!directoryHandle) {
 					setDirectoryError('Choose a directory to continue.');
 					setIsSubmitting(false);
@@ -257,7 +264,11 @@ export function SaveSiteModal() {
 					directoryHandle
 				);
 			} else {
-				await sitesAPI.saveInBrowser(trimmedName);
+				if (isAutosaved) {
+					await sitesAPI.keep(site.slug, trimmedName);
+				} else {
+					await sitesAPI.saveInBrowser(trimmedName);
+				}
 			}
 
 			closeModal();

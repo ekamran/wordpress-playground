@@ -103,6 +103,12 @@ export function EnsurePlaygroundSiteIsSelected({
 	}, [dispatch]);
 
 	useEffect(() => {
+		return () => {
+			dispatch(setAutosaveRestorePending(false));
+		};
+	}, [dispatch]);
+
+	useEffect(() => {
 		async function ensureSiteIsSelected() {
 			const isInitialPageLoadUrl = url.href === initialUrlHref.current;
 			if (!isInitialPageLoadUrl) {

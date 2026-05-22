@@ -1069,6 +1069,96 @@ test.describe('Default Playground storage', () => {
 		await expect(website.page.getByText('Saved Playground')).toBeVisible();
 	});
 
+	test('should store the selected overlay autosave, not just the active Playground', async ({
+		website,
+		browserName,
+	}) => {
+		test.skip(
+			browserName !== 'chromium',
+			`Saved-by-default Playgrounds rely on OPFS, which is not available in Playwright's ${browserName}.`
+		);
+
+		await website.goto(
+			getUniqueSavedPlaygroundSetupUrl('overlay-inactive-save')
+		);
+		await website.ensureSiteManagerIsClosed();
+		await expect(
+			website.page.getByRole('button', { name: 'Autosaved' })
+		).toBeVisible({ timeout: 120000 });
+		const firstAutosave = await getActivePlaygroundSite(website.page);
+
+		await website.openSavedPlaygroundsOverlay();
+		const overlay = website.page
+			.locator('[class*="overlay"]')
+			.filter({ hasText: 'Playground' });
+		await website.page
+			.getByRole('button', { name: 'New Playground' })
+			.click();
+		await expect(overlay).not.toBeVisible({ timeout: 1000 });
+		await expect
+			.poll(() => getActivePlaygroundSite(website.page), {
+				timeout: 120000,
+			})
+			.not.toMatchObject({ slug: firstAutosave.slug });
+		await expect(
+			website.page.getByRole('button', { name: 'Autosaved' })
+		).toBeVisible({ timeout: 120000 });
+		const activeAutosave = await getActivePlaygroundSite(website.page);
+
+		await website.openSavedPlaygroundsOverlay();
+		const inactiveAutosaveRow = website.page
+			.locator('[class*="siteRow"]')
+			.filter({
+				has: website.page.getByRole('button', {
+					name: new RegExp(`^${escapeRegExp(firstAutosave.name)}`),
+				}),
+			});
+		await inactiveAutosaveRow
+			.getByRole('button', { name: 'Store permanently' })
+			.click();
+		const dialog = website.page.getByRole('dialog', {
+			name: 'Save Playground',
+		});
+		await expect(dialog).toBeVisible();
+		await expect(dialog.getByText('Save in this browser')).toBeVisible();
+		await expect(
+			dialog.getByText('Save to a local directory')
+		).toBeVisible();
+		await dialog.getByRole('button', { name: 'Save' }).click();
+
+		await expect
+			.poll(() =>
+				website.page.evaluate(
+					({ firstSlug, activeSlug }) => {
+						const sites = (window as any).playgroundSites.list();
+						const first = sites.find(
+							(site: any) => site.slug === firstSlug
+						);
+						const active = sites.find(
+							(site: any) => site.slug === activeSlug
+						);
+						const currentActive = sites.find(
+							(site: any) => site.isActive
+						);
+						return {
+							firstPersistence: first?.persistence,
+							activePersistence: active?.persistence,
+							activeSlug: currentActive?.slug,
+						};
+					},
+					{
+						firstSlug: firstAutosave.slug,
+						activeSlug: activeAutosave.slug,
+					}
+				)
+			)
+			.toEqual({
+				firstPersistence: 'explicit',
+				activePersistence: 'autosave',
+				activeSlug: activeAutosave.slug,
+			});
+	});
+
 	test('should save a default autosaved Playground to a local directory', async ({
 		website,
 		browserName,
