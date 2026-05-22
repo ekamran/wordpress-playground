@@ -91,5 +91,7 @@ test('should navigate within WordPress from Site Tools shortcuts', async ({
 
 	await website.page.getByRole('button', { name: 'Homepage' }).click();
 	await expect(website.page).toHaveURL(/\/$/);
-	await expect(wordpress.locator('p.wp-block-site-title')).toBeVisible();
+	await expect(
+		wordpress.getByRole('link', { name: /What can I do/ })
+	).toBeVisible();
 });
