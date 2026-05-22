@@ -4,7 +4,7 @@ import { createListenerMiddleware } from '@reduxjs/toolkit';
 import type { PlaygroundReduxState, PlaygroundDispatch } from './store';
 import { selectActiveSite, setActiveSite, useAppDispatch } from './store';
 import { setActiveSiteError } from './slice-ui';
-import { addClientInfo } from './slice-clients';
+import { addClientInfo, updateClientInfo } from './slice-clients';
 import {
 	selectAllSites,
 	selectSiteBySlug,
@@ -21,7 +21,10 @@ import {
 } from './slice-sites';
 import { randomSiteName } from './random-site-name';
 import { persistTemporarySite } from './persist-temporary-site';
-import { selectClientBySiteSlug } from './slice-clients';
+import {
+	selectClientBySiteSlug,
+	selectClientInfoBySiteSlug,
+} from './slice-clients';
 import type { PlaygroundClient } from '@wp-playground/remote';
 import type { AllPHPVersion } from '@php-wasm/universal';
 import { isOpfsAvailable } from '../opfs/opfs-site-storage';
@@ -83,9 +86,10 @@ export interface PlaygroundSitesAPI {
 	 * Keeps an autosaved browser Playground indefinitely.
 	 *
 	 * @param siteSlug Optional slug. Uses the active site when omitted.
+	 * @param name Optional display name to apply before keeping it.
 	 * @throws When no site is selected or the site is temporary.
 	 */
-	keep(siteSlug?: string): Promise<void>;
+	keep(siteSlug?: string, name?: string): Promise<void>;
 
 	/**
 	 * Persists the active temporary site to a local directory.
@@ -254,17 +258,8 @@ export function createSitesAPI(
 				throw new Error('No active site selected');
 			}
 			if (site.metadata.storage !== 'none') {
-				const trimmedName = name?.trim();
-				if (trimmedName && trimmedName !== site.metadata.name) {
-					await dispatch(
-						updateSiteMetadata({
-							slug: site.slug,
-							changes: { name: trimmedName },
-						})
-					);
-				}
 				if (isAutosavedSite(site)) {
-					await dispatch(preserveSite(site.slug));
+					await api.keep(site.slug, name);
 				}
 				return { slug: site.slug, storage: site.metadata.storage };
 			}
@@ -311,12 +306,21 @@ export function createSitesAPI(
 			return { slug: site.slug, storage };
 		},
 
-		async keep(siteSlug?: string) {
+		async keep(siteSlug?: string, name?: string) {
 			const site = siteSlug
 				? selectSiteBySlug(getState(), siteSlug)
 				: selectActiveSite(getState());
 			if (!site) {
 				throw new Error('No site selected');
+			}
+			const trimmedName = name?.trim();
+			if (trimmedName && trimmedName !== site.metadata.name) {
+				await dispatch(
+					updateSiteMetadata({
+						slug: site.slug,
+						changes: { name: trimmedName },
+					})
+				);
 			}
 			await dispatch(preserveSite(site.slug));
 		},
@@ -339,9 +343,6 @@ export function createSitesAPI(
 								changes: { name: trimmedName },
 							})
 						);
-					}
-					if (isAutosavedSite(site)) {
-						await dispatch(preserveSite(site.slug));
 					}
 					return { slug: site.slug, storage: site.metadata.storage };
 				}
@@ -523,21 +524,86 @@ export function createSitesAPI(
 					persistence: options.persistence ?? 'autosave',
 				})
 			);
-			await api.setActiveSite(newSiteInfo.slug, {
-				updateUrl: options.updateUrl,
-			});
-			await dispatch(
-				pruneAutosavedSites({
-					excludeSlugs: [
-						newSiteInfo.slug,
-						...(options.excludeFromPruning ?? []),
-					],
-				})
-			);
+			const stopPruningListener =
+				schedulePruneAutosavedSitesAfterInitialSync(
+					newSiteInfo.slug,
+					options.excludeFromPruning ?? [],
+					getState,
+					dispatch
+				);
+			try {
+				await api.setActiveSite(newSiteInfo.slug, {
+					updateUrl: options.updateUrl,
+				});
+			} catch (error) {
+				stopPruningListener();
+				throw error;
+			}
 			return newSiteInfo.slug;
 		},
 	};
 	return api;
+}
+
+type InitialSyncState = 'pending' | 'succeeded' | 'failed';
+
+function schedulePruneAutosavedSitesAfterInitialSync(
+	siteSlug: string,
+	excludeFromPruning: string[],
+	getState: () => PlaygroundReduxState,
+	dispatch: PlaygroundDispatch
+) {
+	const pruneOptions = {
+		excludeSlugs: [siteSlug, ...excludeFromPruning],
+	};
+	let unsubscribe = () => {};
+
+	const maybePruneAutosaves = async (
+		state: PlaygroundReduxState,
+		pruneDispatch: PlaygroundDispatch
+	) => {
+		const syncState = getInitialOpfsSyncState(state, siteSlug);
+		if (syncState === 'pending') {
+			return;
+		}
+		unsubscribe();
+		if (syncState === 'succeeded') {
+			await pruneDispatch(pruneAutosavedSites(pruneOptions));
+		}
+	};
+
+	unsubscribe = startListening({
+		predicate: (action, currentState) =>
+			updateClientInfo.match(action) &&
+			action.payload.siteSlug === siteSlug &&
+			getInitialOpfsSyncState(currentState, siteSlug) !== 'pending',
+		effect: async (_action, listenerApi) => {
+			await maybePruneAutosaves(
+				listenerApi.getState(),
+				listenerApi.dispatch
+			);
+		},
+	});
+
+	void maybePruneAutosaves(getState(), dispatch);
+	return unsubscribe;
+}
+
+function getInitialOpfsSyncState(
+	state: PlaygroundReduxState,
+	siteSlug: string
+): InitialSyncState {
+	const site = selectSiteBySlug(state, siteSlug);
+	if (!site) {
+		return 'failed';
+	}
+	const clientInfo = selectClientInfoBySiteSlug(state, siteSlug);
+	if (clientInfo?.opfsSync?.status === 'error') {
+		return 'failed';
+	}
+	return site.metadata.initialOpfsSyncPending || clientInfo?.opfsSync
+		? 'pending'
+		: 'succeeded';
 }
 
 function getUrlWithSettings(settings?: SiteSettings) {

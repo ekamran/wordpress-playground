@@ -35,6 +35,7 @@ import {
 	setSiteManagerSection,
 	setSiteSlugToRename,
 	setSiteSlugToDelete,
+	setSiteSlugToSave,
 } from '../../lib/state/redux/slice-ui';
 import { useSitesAPI } from '../../lib/state/redux/site-management-api-middleware';
 import { WordPressIcon } from '@wp-playground/components';
@@ -254,9 +255,11 @@ export function SavedPlaygroundsOverlay({
 		closeMenu();
 	};
 
-	const handleKeepSite = async (site: SiteInfo, closeMenu?: () => void) => {
-		await sitesAPI.keep(site.slug);
+	const handleKeepSite = (site: SiteInfo, closeMenu?: () => void) => {
+		dispatch(setSiteSlugToSave(site.slug));
+		modalDispatch(setActiveModal(modalSlugs.SAVE_SITE));
 		closeMenu?.();
+		onClose();
 	};
 
 	const getStoredSiteDetails = (site: SiteInfo) => {

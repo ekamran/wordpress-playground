@@ -149,6 +149,8 @@ export interface UIState {
 	activeModal: string | null;
 	siteSlugToRename?: string;
 	siteSlugToDelete?: string;
+	siteSlugToSave?: string;
+	autosaveRestorePending: boolean;
 	githubAuthRepoUrl?: string;
 	offline: boolean;
 	siteManagerIsOpen: boolean;
@@ -195,6 +197,7 @@ const initialState: UIState = {
 		// your entire screen – quite a confusing experience.
 		window.innerWidth >= BREAKPOINTS.tablet,
 	siteManagerSection: 'site-details',
+	autosaveRestorePending: false,
 };
 
 const uiSlice = createSlice({
@@ -277,6 +280,15 @@ const uiSlice = createSlice({
 		) => {
 			state.siteSlugToDelete = action.payload;
 		},
+		setSiteSlugToSave: (
+			state,
+			action: PayloadAction<string | undefined>
+		) => {
+			state.siteSlugToSave = action.payload;
+		},
+		setAutosaveRestorePending: (state, action: PayloadAction<boolean>) => {
+			state.autosaveRestorePending = action.payload;
+		},
 	},
 });
 
@@ -323,6 +335,8 @@ export const {
 	setSiteManagerSection,
 	setSiteSlugToRename,
 	setSiteSlugToDelete,
+	setSiteSlugToSave,
+	setAutosaveRestorePending,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

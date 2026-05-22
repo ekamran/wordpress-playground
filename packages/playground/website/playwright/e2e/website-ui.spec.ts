@@ -952,6 +952,14 @@ test.describe('Default Playground storage', () => {
 		await expect(
 			siteInfoPanel.getByRole('button', { name: 'Store permanently' })
 		).toBeVisible();
+		await siteInfoPanel
+			.getByRole('button', { name: 'Store permanently' })
+			.click();
+		const dialog = website.page.getByRole('dialog', {
+			name: 'Save Playground',
+		});
+		await expect(dialog).toBeVisible();
+		await dialog.getByRole('button', { name: 'Cancel' }).click();
 		await expect(
 			website.page.getByText(
 				'This is an Unsaved Playground. Your changes will be lost on page refresh.'
@@ -982,6 +990,10 @@ test.describe('Default Playground storage', () => {
 			name: 'Save Playground',
 		});
 		await expect(dialog).toBeVisible();
+		await expect(dialog.getByText('Save in this browser')).toBeVisible();
+		await expect(
+			dialog.getByText('Save to a local directory')
+		).toBeVisible();
 		await dialog.getByRole('button', { name: 'Save' }).click();
 
 		await expect
@@ -1002,6 +1014,59 @@ test.describe('Default Playground storage', () => {
 		await expect(
 			website.page.getByRole('button', { name: 'Autosaved' })
 		).toHaveCount(0);
+	});
+
+	test('should open the save modal from overlay autosave actions', async ({
+		website,
+		browserName,
+	}) => {
+		test.skip(
+			browserName !== 'chromium',
+			`Saved-by-default Playgrounds rely on OPFS, which is not available in Playwright's ${browserName}.`
+		);
+
+		await website.goto(getUniqueSavedPlaygroundSetupUrl('overlay-save'));
+		await website.ensureSiteManagerIsClosed();
+		const statusButton = website.page.getByRole('button', {
+			name: 'Autosaved',
+		});
+		await expect(statusButton).toBeVisible({ timeout: 120000 });
+		const activeAutosave = await getActivePlaygroundSite(website.page);
+
+		await website.openSavedPlaygroundsOverlay();
+		const activeAutosaveRow = website.page
+			.locator('[class*="siteRow"]')
+			.filter({
+				has: website.page.getByRole('button', {
+					name: new RegExp(`^${escapeRegExp(activeAutosave.name)}`),
+				}),
+			});
+		await activeAutosaveRow
+			.getByRole('button', { name: 'Store permanently' })
+			.click();
+		const dialog = website.page.getByRole('dialog', {
+			name: 'Save Playground',
+		});
+		await expect(dialog).toBeVisible();
+		await expect(dialog.getByText('Save in this browser')).toBeVisible();
+		await expect(
+			dialog.getByText('Save to a local directory')
+		).toBeVisible();
+		await dialog.getByRole('button', { name: 'Save' }).click();
+
+		await expect
+			.poll(() =>
+				website.page.evaluate(() => {
+					const sites = (window as any).playgroundSites.list();
+					const activeSite = sites.find((site: any) => site.isActive);
+					return {
+						storage: activeSite?.storage,
+						persistence: activeSite?.persistence,
+					};
+				})
+			)
+			.toEqual({ storage: 'opfs', persistence: 'explicit' });
+		await expect(website.page.getByText('Saved Playground')).toBeVisible();
 	});
 
 	test('should save a default autosaved Playground to a local directory', async ({
@@ -1042,8 +1107,8 @@ test.describe('Default Playground storage', () => {
 		});
 		await expect(dialog).toBeVisible();
 		await dialog
-			.getByText('Save to a local directory')
-			.click({ force: true });
+			.getByRole('radio', { name: 'Save to a local directory' })
+			.check({ force: true });
 		await dialog.getByRole('button', { name: 'Choose...' }).click();
 		await dialog.getByRole('button', { name: 'Save' }).click();
 
@@ -1111,7 +1176,7 @@ test.describe('Default Playground storage', () => {
 		await website.waitForNestedIframes();
 		await expect(
 			website.page.getByRole('button', { name: 'Unsaved' })
-		).toBeVisible();
+		).toHaveCount(0);
 		await website.page
 			.getByRole('button', { name: 'Restore Autosave' })
 			.click();
@@ -1165,7 +1230,7 @@ echo get_option('blogname');
 		await website.waitForNestedIframes();
 		await expect(
 			website.page.getByRole('button', { name: 'Unsaved' })
-		).toBeVisible();
+		).toHaveCount(0);
 		expect(new URL(website.page.url()).searchParams.get('site-slug')).toBe(
 			null
 		);
@@ -1303,6 +1368,15 @@ echo get_option('blogname');
 		await website.page.getByRole('button', { name: 'Unsaved' }).click();
 		await expect(
 			website.page.getByRole('button', { name: 'Store permanently' })
+		).toHaveCount(0);
+		await website.ensureSiteManagerIsOpen();
+		await expect(
+			website.page.getByText(
+				'This is an Unsaved Playground. Your changes will be lost on page refresh.'
+			)
+		).toBeVisible();
+		await expect(
+			website.page.getByRole('button', { name: 'Save site locally' })
 		).toHaveCount(0);
 	});
 

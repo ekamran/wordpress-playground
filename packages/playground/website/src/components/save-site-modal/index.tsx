@@ -15,7 +15,10 @@ import {
 import { Modal } from '../modal';
 import ModalButtons from '../modal/modal-buttons';
 import { useAppDispatch, useAppSelector } from '../../lib/state/redux/store';
-import { setActiveModal } from '../../lib/state/redux/slice-ui';
+import {
+	setActiveModal,
+	setSiteSlugToSave,
+} from '../../lib/state/redux/slice-ui';
 import { useSitesAPI } from '../../lib/state/redux/site-management-api-middleware';
 import { useLocalFsAvailability } from '../../lib/hooks/use-local-fs-availability';
 import { selectClientInfoBySiteSlug } from '../../lib/state/redux/slice-clients';
@@ -37,14 +40,18 @@ const helpTextStyle: CSSProperties = {
 export function SaveSiteModal() {
 	const dispatch = useAppDispatch();
 	const sitesAPI = useSitesAPI();
+	const siteSlugToSave = useAppSelector((state) => state.ui.siteSlugToSave);
+	const autosaveRestorePending = useAppSelector(
+		(state) => state.ui.autosaveRestorePending
+	);
+	const activeSiteSlug = useAppSelector((state) => state.ui.activeSite?.slug);
+	const targetSiteSlug = siteSlugToSave ?? activeSiteSlug;
 	const site = useAppSelector((state) =>
-		state.ui.activeSite?.slug
-			? state.sites.entities[state.ui.activeSite.slug]
-			: undefined
+		targetSiteSlug ? state.sites.entities[targetSiteSlug] : undefined
 	);
 	const clientInfo = useAppSelector((state) =>
-		state.ui.activeSite?.slug
-			? selectClientInfoBySiteSlug(state, state.ui.activeSite.slug)
+		targetSiteSlug
+			? selectClientInfoBySiteSlug(state, targetSiteSlug)
 			: undefined
 	);
 
@@ -123,14 +130,17 @@ export function SaveSiteModal() {
 		saveProgress?.status === 'syncing' ? saveProgress.progress : undefined;
 
 	const canSaveSite = site
-		? site.metadata.storage === 'none' || isAutosavedSite(site)
+		? (site.metadata.storage === 'none' && !autosaveRestorePending) ||
+			isAutosavedSite(site)
 		: false;
+	const isAutosaved = site ? isAutosavedSite(site) : false;
 	if (!site || !canSaveSite) {
 		return null;
 	}
 
 	const closeModal = () => {
 		dispatch(setActiveModal(null));
+		dispatch(setSiteSlugToSave(undefined));
 	};
 
 	const localIsAvailable = localFsAvailability === 'available';
@@ -250,7 +260,7 @@ export function SaveSiteModal() {
 				await sitesAPI.saveInBrowser(trimmedName);
 			}
 
-			dispatch(setActiveModal(null));
+			closeModal();
 		} catch (error) {
 			logger.error(error);
 			setSubmitError(
@@ -308,7 +318,7 @@ export function SaveSiteModal() {
 				autoComplete="off"
 			>
 				<p style={{ margin: 0, color: '#1e1e1e' }}>
-					{site.metadata.storage === 'none'
+					{!isAutosaved
 						? 'This Playground is temporary and will be lost when you refresh or close this page. Save it to keep your work and find it later in Your Playgrounds.'
 						: 'This Playground is autosaved in this browser and may be removed after newer autosaves. Store it permanently in this browser or save it to a local directory.'}
 				</p>

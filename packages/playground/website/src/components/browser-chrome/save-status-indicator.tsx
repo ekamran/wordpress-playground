@@ -7,7 +7,11 @@ import {
 	useActiveSite,
 	useAppDispatch,
 } from '../../lib/state/redux/store';
-import { modalSlugs, setActiveModal } from '../../lib/state/redux/slice-ui';
+import {
+	modalSlugs,
+	setActiveModal,
+	setSiteSlugToSave,
+} from '../../lib/state/redux/slice-ui';
 import { Icon, Popover } from '@wordpress/components';
 import { backup, check, cautionFilled } from '@wordpress/icons';
 import {
@@ -74,6 +78,9 @@ function getProgressPercent(
 export function SaveStatusIndicator() {
 	const clientInfo = useAppSelector(getActiveClientInfo);
 	const activeSite = useActiveSite();
+	const autosaveRestorePending = useAppSelector(
+		(state) => state.ui.autosaveRestorePending
+	);
 	const dispatch = useAppDispatch();
 	const statusButtonRef = useRef<HTMLButtonElement>(null);
 	const suppressNextTriggerClickRef = useRef(false);
@@ -88,12 +95,16 @@ export function SaveStatusIndicator() {
 
 	const handleSaveClick = () => {
 		setIsPopoverOpen(false);
+		if (activeSite) {
+			dispatch(setSiteSlugToSave(activeSite.slug));
+		}
 		dispatch(setActiveModal(modalSlugs.SAVE_SITE));
 	};
 
 	const handleKeepClick = () => {
 		setIsPopoverOpen(false);
 		if (activeSite) {
+			dispatch(setSiteSlugToSave(activeSite.slug));
 			dispatch(setActiveModal(modalSlugs.SAVE_SITE));
 		}
 	};
@@ -119,7 +130,7 @@ export function SaveStatusIndicator() {
 		setIsPopoverOpen((isOpen) => !isOpen);
 	};
 
-	if (!status) {
+	if (!status || autosaveRestorePending) {
 		return null;
 	}
 

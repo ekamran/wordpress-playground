@@ -22,6 +22,7 @@ import {
 	setSiteManagerOpen,
 	setSiteSlugToDelete,
 	setSiteSlugToRename,
+	setSiteSlugToSave,
 } from '../../../lib/state/redux/slice-ui';
 import { useAppDispatch, useAppSelector } from '../../../lib/state/redux/store';
 import { usePlaygroundClientInfo } from '../../../lib/use-playground-client';
@@ -108,6 +109,7 @@ export function SiteInfoPanel({
 		onClose();
 	};
 	const keepSite = () => {
+		dispatch(setSiteSlugToSave(site.slug));
 		dispatch(setActiveModal(modalSlugs.SAVE_SITE));
 	};
 	const clientInfo = useAppSelector((state) =>

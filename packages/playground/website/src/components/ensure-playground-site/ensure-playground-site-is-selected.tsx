@@ -22,7 +22,11 @@ import {
 } from '../../lib/state/redux/store';
 import { logger } from '@php-wasm/logger';
 import { usePrevious } from '../../lib/hooks/use-previous';
-import { modalSlugs, setActiveModal } from '../../lib/state/redux/slice-ui';
+import {
+	modalSlugs,
+	setActiveModal,
+	setAutosaveRestorePending,
+} from '../../lib/state/redux/slice-ui';
 import { selectClientBySiteSlug } from '../../lib/state/redux/slice-clients';
 import { useSitesAPI } from '../../lib/state/redux/site-management-api-middleware';
 import {
@@ -103,6 +107,7 @@ export function EnsurePlaygroundSiteIsSelected({
 			const isInitialPageLoadUrl = url.href === initialUrlHref.current;
 			if (!isInitialPageLoadUrl) {
 				setAutosaveNudge(undefined);
+				dispatch(setAutosaveRestorePending(false));
 			}
 
 			// Don't create a new temporary site until the site listing settles.
@@ -187,6 +192,7 @@ export function EnsurePlaygroundSiteIsSelected({
 						site: matchingAutosave,
 						setupUrlFingerprint: currentSetupUrlFingerprint,
 					});
+					dispatch(setAutosaveRestorePending(true));
 					await sitesAPI.createNewTemporarySite();
 					return;
 				}
@@ -245,6 +251,7 @@ export function EnsurePlaygroundSiteIsSelected({
 					site={autosaveNudge.site}
 					onRestore={() => {
 						void sitesAPI.setActiveSite(autosaveNudge.site.slug);
+						dispatch(setAutosaveRestorePending(false));
 						setAutosaveNudge(undefined);
 					}}
 					onKeepNew={() => {
@@ -256,6 +263,7 @@ export function EnsurePlaygroundSiteIsSelected({
 							updateUrl: false,
 							excludeFromPruning: [autosaveNudge.site.slug],
 						});
+						dispatch(setAutosaveRestorePending(false));
 						setAutosaveNudge(undefined);
 					}}
 				/>
