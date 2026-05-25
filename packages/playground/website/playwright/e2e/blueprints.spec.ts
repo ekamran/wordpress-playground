@@ -307,7 +307,7 @@ test('wp-cli step should create a post', async ({ website, wordpress }) => {
 	};
 	await website.goto(`/#${JSON.stringify(blueprint)}`);
 	await expect(
-		wordpress.locator('body').locator('[aria-label="“Test post” (Edit)"]')
+		wordpress.locator('body').locator('a').filter({ hasText: 'Test post' })
 	).toBeVisible();
 });
 
@@ -960,6 +960,48 @@ test('WordPress homepage loads when mu-plugin prints a notice', async ({
 	await expect(wordpress.locator('body')).toContainText(
 		'Welcome to WordPress. This is your first post.'
 	);
+});
+
+test('Blueprint with `preferredVersions.wp: false` boots Playground without WordPress', async ({
+	website,
+}) => {
+	const blueprint: Blueprint = {
+		preferredVersions: { php: 'latest', wp: false },
+	};
+	const encodedBlueprint = encodeStringAsBase64(JSON.stringify(blueprint));
+	// `website.goto` waits for the WP iframe body to render, which never
+	// happens when WordPress isn't installed. Skip that wait and use the
+	// raw page navigation instead.
+	await website.page.goto(`/#${encodedBlueprint}`);
+
+	// `window.playground` is exposed once the worker boot resolves.
+	await website.page.waitForFunction(
+		() => Boolean((window as any).playground),
+		null,
+		{ timeout: 240_000 }
+	);
+
+	const probe = await website.page.evaluate(async () => {
+		const playground = (window as any).playground;
+		const r = await playground.run({
+			// `/wordpress` itself is created by PHPRequestHandler as the
+			// document root regardless of WP, so that's not a useful signal.
+			// What we really want is: no WP files, no WP runtime, no SQLite
+			// drop-in installed.
+			code: `<?php echo json_encode([
+				'wp_files' => file_exists('/wordpress/wp-includes/version.php'),
+				'wp_loaded' => function_exists('wp_get_current_user'),
+				'sqlite_drop_in' => file_exists('/internal/shared/preload/0-sqlite.php'),
+			]);`,
+		});
+		return r.text;
+	});
+
+	expect(JSON.parse(probe)).toEqual({
+		wp_files: false,
+		wp_loaded: false,
+		sqlite_drop_in: false,
+	});
 });
 
 /**

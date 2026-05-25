@@ -126,7 +126,7 @@ El comando `server` ofrece control total sobre la configuración:
 npx @wp-playground/cli@latest server
 ```
 
-![Playground CLI en acción](@site/static/img/developers/npx-wp-playground-server.gif)
+![Playground CLI en acción](https://raw.githubusercontent.com/WordPress/wordpress-playground/refs/heads/trunk/packages/docs/site/static/img/developers/npx-wp-playground-server.gif)
 
 <!--
 **Automatic site persistence:** By default, the `start` command keeps your WordPress site persistent across sessions. Your files and database are stored in `~/.wordpress-playground/sites/<path-hash>/`, where `<path-hash>` is derived from your project directory. This means you can stop and restart the CLI without losing your work.
@@ -154,9 +154,11 @@ The `--reset` flag works only with `start`. For `server`, manually delete the pe
 :::
 -->
 
-:::info
+<div class="callout callout-info">
+
 La opción `--reset` solo funciona con `start`. Para `server`, elimina manualmente el directorio del sitio persistido en `~/.wordpress-playground/sites/<path-hash>/`.
-:::
+
+</div>
 
 <!--
 ### Choosing a WordPress and PHP Version
@@ -253,9 +255,11 @@ On Windows, the path format `/host/path:/vfs/path` can cause issues. To resolve 
 :::
 -->
 
-:::info
+<div class="callout callout-info">
+
 En Windows, el formato de ruta `/host/path:/vfs/path` puede causar problemas. Para resolverlo, usa las opciones `--mount-dir` y `--mount-dir-before-install`. Estas opciones permiten especificar las rutas del host y del sistema de archivos virtual en un formato alternativo: `"/host/path"` `"/vfs/path"`.
-:::
+
+</div>
 
 <!--
 ### Understanding Data Persistence and SQLite Location in `server` mode
